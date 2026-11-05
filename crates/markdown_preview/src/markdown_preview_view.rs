@@ -1015,9 +1015,60 @@ impl MarkdownPreviewView {
         cx.notify();
     }
 
-    /// Local patch: used by the "Rendered | Raw" toolbar switch.
+    /// Local patch: used by the "Rendered | Raw" toolbar switch. Swaps the
+    /// preview for its source editor in the same pane and at the same tab
+    /// position, instead of jumping to wherever the editor was open before.
     pub fn return_to_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.close_and_return_to_editor(&CloseAndReturnToEditor, window, cx);
+        let Some(editor) = self
+            .active_editor
+            .as_ref()
+            .map(|state| state.editor.clone())
+        else {
+            return;
+        };
+        let Some(workspace) = self.workspace.upgrade() else {
+            return;
+        };
+        let preview_id = cx.entity_id();
+        let editor_id = editor.entity_id();
+
+        window.defer(cx, move |window, cx| {
+            workspace.update(cx, |workspace, cx| {
+                let Some(pane) = workspace.pane_for_item_id(preview_id) else {
+                    return;
+                };
+                // Take the editor out of any other pane first.
+                let other_panes: Vec<_> = workspace
+                    .panes()
+                    .iter()
+                    .filter(|other| *other != &pane)
+                    .filter(|other| other.read(cx).items().any(|item| item.item_id() == editor_id))
+                    .cloned()
+                    .collect();
+                for other in other_panes {
+                    other.update(cx, |other, cx| {
+                        other.remove_item(editor_id, false, true, window, cx)
+                    });
+                }
+
+                let existing = pane.read(cx).items().position(|item| item.item_id() == editor_id);
+                if let Some(index) = existing {
+                    pane.update(cx, |pane, cx| pane.activate_item(index, true, true, window, cx));
+                } else {
+                    // Re-adding the source emits `ItemAdded`; suppress its automatic preview once.
+                    cx.global_mut::<SuppressedAutoPreviews>().0.insert(editor_id);
+                    let index = pane.read(cx).items().position(|item| item.item_id() == preview_id);
+                    pane.update(cx, |pane, cx| {
+                        pane.add_item(Box::new(editor), true, true, index, window, cx)
+                    });
+                }
+
+                pane.update(cx, |pane, cx| {
+                    pane.close_item_by_id(preview_id, SaveIntent::Skip, window, cx)
+                })
+                .detach_and_log_err(cx);
+            });
+        });
     }
 
     fn close_and_return_to_editor(
