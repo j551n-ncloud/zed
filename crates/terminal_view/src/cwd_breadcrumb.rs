@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-use gpui::{Entity, Subscription, WeakEntity};
+use gpui::{Entity, Focusable as _, Subscription, WeakEntity};
 use project::Project;
 use ui::prelude::*;
 use workspace::{HideStatusItem, StatusItemView, Workspace, item::ItemHandle};
@@ -59,6 +59,7 @@ fn navigate(
     workspace: &WeakEntity<Workspace>,
     project: &Entity<Project>,
     path: PathBuf,
+    window: &mut Window,
     cx: &mut App,
 ) {
     set_project_root(project.clone(), path.clone(), cx);
@@ -81,17 +82,24 @@ fn navigate(
         return;
     };
     let terminal = terminal_view.read(cx).terminal().clone();
-    let at_prompt = terminal
+    // Like Terax, type the `cd` into the terminal. Skip it only when we know
+    // a program other than the shell is running (vim, ssh, claude, ...).
+    let busy = terminal
         .read(cx)
-        .foreground_process_command_name()
-        .is_some_and(|name| SHELLS.contains(&name.trim_start_matches('-')));
-    if !at_prompt {
+        .foreground_process_raw_name()
+        .is_some_and(|name| {
+            let name = name.trim_start_matches('-');
+            let name = name.rsplit('/').next().unwrap_or(name);
+            !SHELLS.contains(&name)
+        });
+    if busy {
         return;
     }
     let quoted = path.to_string_lossy().replace('\'', "'\\''");
     terminal.update(cx, |terminal, _| {
         terminal.input(format!("cd -- '{quoted}'\r").into_bytes());
     });
+    window.focus(&terminal_view.focus_handle(cx), cx);
 }
 
 impl Render for CwdBreadcrumb {
@@ -131,7 +139,9 @@ impl Render for CwdBreadcrumb {
                 .when(is_home, |button| {
                     button.start_icon(Icon::new(IconName::Folder).size(IconSize::XSmall))
                 })
-                .on_click(move |_, _window, cx| navigate(&workspace, &project, path.clone(), cx));
+                .on_click(move |_, window, cx| {
+                    navigate(&workspace, &project, path.clone(), window, cx)
+                });
             row = row.child(button);
         }
         row.into_any_element()

@@ -11,6 +11,8 @@ use crate::{TerminalView, terminal_panel::TerminalPanel};
 pub struct BellEntry {
     pub terminal: WeakEntity<TerminalView>,
     pub title: SharedString,
+    /// What happened, for example "needs your input" or "finished".
+    pub message: SharedString,
 }
 
 #[derive(Default)]
@@ -48,15 +50,72 @@ impl BellCenter {
         cx.notify();
     }
 
+    /// A plain terminal bell. Does not replace a more specific notification
+    /// that is already listed for the same terminal.
     pub(crate) fn ring(terminal: WeakEntity<TerminalView>, title: SharedString, cx: &mut App) {
+        let center = Self::global(cx);
+        center.update(cx, |center, cx| {
+            center.entries.retain(|entry| entry.terminal.upgrade().is_some());
+            if center.entries.iter().any(|entry| entry.terminal == terminal) {
+                return;
+            }
+            center.entries.insert(
+                0,
+                BellEntry {
+                    terminal,
+                    title,
+                    message: "rang the bell".into(),
+                },
+            );
+            cx.notify();
+        });
+    }
+
+    /// A desktop notification (OSC 777 / OSC 9). Terax's Claude Code hooks
+    /// send `working`, `attention` and `finished`.
+    pub(crate) fn notify(
+        terminal: WeakEntity<TerminalView>,
+        terminal_title: SharedString,
+        title: Option<String>,
+        body: String,
+        looking: bool,
+        window_active: bool,
+        cx: &mut App,
+    ) {
+        let (message, sound): (SharedString, &str) = match body.as_str() {
+            "working" => {
+                Self::clear(&terminal, cx);
+                return;
+            }
+            "attention" => ("needs your input".into(), "Ping"),
+            "finished" => ("finished".into(), "Glass"),
+            "" => (title.clone().unwrap_or_default().into(), "Glass"),
+            other => (other.to_owned().into(), "Glass"),
+        };
+        if looking {
+            return;
+        }
+
         let center = Self::global(cx);
         center.update(cx, |center, cx| {
             center
                 .entries
                 .retain(|entry| entry.terminal != terminal && entry.terminal.upgrade().is_some());
-            center.entries.insert(0, BellEntry { terminal, title });
+            center.entries.insert(
+                0,
+                BellEntry {
+                    terminal,
+                    title: terminal_title.clone(),
+                    message: message.clone(),
+                },
+            );
             cx.notify();
         });
+
+        play_sound(sound);
+        if !window_active {
+            show_banner(&terminal_title, &message);
+        }
     }
 
     pub(crate) fn clear(terminal: &WeakEntity<TerminalView>, cx: &mut App) {
@@ -97,4 +156,35 @@ pub fn reveal_terminal(
     }
     window.focus(&terminal.focus_handle(cx), cx);
     BellCenter::clear(&terminal.downgrade(), cx);
+}
+
+/// Plays one of the macOS system sounds in /System/Library/Sounds.
+fn play_sound(name: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let path = format!("/System/Library/Sounds/{name}.aiff");
+        std::process::Command::new("afplay").arg(path).spawn().ok();
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = name;
+}
+
+/// Shows a macOS notification banner.
+fn show_banner(title: &str, message: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let quote = |text: &str| text.replace('\\', "\\\\").replace('"', "\\\"");
+        let script = format!(
+            "display notification \"{}\" with title \"Zed\" subtitle \"{}\"",
+            quote(message),
+            quote(title)
+        );
+        std::process::Command::new("osascript")
+            .arg("-e")
+            .arg(script)
+            .spawn()
+            .ok();
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (title, message);
 }

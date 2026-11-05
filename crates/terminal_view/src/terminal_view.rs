@@ -1308,7 +1308,9 @@ fn subscribe_for_terminal_events(
                 Event::Bell => {
                     terminal_view.has_bell = true;
                     // Local patch: list bells from terminals you are not looking at.
-                    if !terminal_view.focus_handle.contains_focused(window, cx) {
+                    if !terminal_view.focus_handle.contains_focused(window, cx)
+                        || !window.is_window_active()
+                    {
                         let title = terminal.read(cx).title(true).into();
                         bell_center::BellCenter::ring(cx.entity().downgrade(), title, cx);
                     }
@@ -1397,6 +1399,21 @@ fn subscribe_for_terminal_events(
                     ),
                 },
                 Event::BreadcrumbsChanged => cx.emit(ItemEvent::UpdateBreadcrumbs),
+                // Local patch: Terax-style agent notifications.
+                Event::Notification { title, body } => {
+                    let looking = terminal_view.focus_handle.contains_focused(window, cx)
+                        && window.is_window_active();
+                    let terminal_title = terminal.read(cx).title(true).into();
+                    bell_center::BellCenter::notify(
+                        cx.entity().downgrade(),
+                        terminal_title,
+                        title.clone(),
+                        body.clone(),
+                        looking,
+                        window.is_window_active(),
+                        cx,
+                    );
+                }
                 Event::CloseTerminal => cx.emit(ItemEvent::CloseItem),
                 Event::SelectionsChanged => {
                     window.invalidate_character_coordinates();

@@ -1288,7 +1288,12 @@ impl TitleBar {
                     BellCenter::global(cx)
                         .read(cx)
                         .entries()
-                        .map(|entry| (entry.title.clone(), entry.terminal.clone()))
+                        .map(|entry| {
+                            (
+                                SharedString::from(format!("{} · {}", entry.title, entry.message)),
+                                entry.terminal.clone(),
+                            )
+                        })
                         .collect();
                 let workspace = workspace.clone();
                 Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
