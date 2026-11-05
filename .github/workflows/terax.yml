@@ -1,0 +1,57 @@
+# Builds the terax branch into Zed.app on an Apple Silicon runner.
+# Push a tag like v1.26.2-terax.2 to build and attach the zip to its release,
+# or run it by hand (Actions -> terax -> Run workflow) for a downloadable artifact.
+name: terax
+
+on:
+  push:
+    tags: ["v*-terax.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 300
+    env:
+      CARGO_PROFILE_RELEASE_FAST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: cmake
+        run: command -v cmake || brew install cmake
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: terax-release-fast
+
+      - name: Build
+        run: cargo build --profile release-fast -p zed -p cli
+
+      - name: Bundle
+        id: bundle
+        run: |
+          build="${GITHUB_REF_NAME##*-terax.}"
+          [[ "$build" =~ ^[0-9]+$ ]] || build="ci${GITHUB_RUN_NUMBER}"
+          zip=$(TERAX_BUILD="$build" terax/bundle.sh | tail -1)
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zed-terax
+          path: ${{ steps.bundle.outputs.zip }}
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "Built by GitHub Actions. See README."
+          gh release upload "$GITHUB_REF_NAME" "${{ steps.bundle.outputs.zip }}" --clobber

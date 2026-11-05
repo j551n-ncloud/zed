@@ -62,6 +62,19 @@ popovers stay solid.
 the same place. With `"markdown_preview": { "open_markdown_files_in_preview": true }` a click in the
 tree opens them rendered.
 
+## Download
+
+[Releases](https://github.com/j551n-ncloud/zed/releases): `Zed-<version>-terax.<n>-arm64.zip` for
+Apple Silicon. It is signed ad hoc, not notarized, so after unzipping run once:
+
+```sh
+xattr -dr com.apple.quarantine Zed.app && mv Zed.app /Applications/
+```
+
+Releases are built by [`.github/workflows/terax.yml`](.github/workflows/terax.yml) on a GitHub
+macOS runner: push a tag like `v1.26.2-terax.2`, or start the workflow by hand for a test build.
+Zed's own workflows are removed on this branch.
+
 ## Build (macOS)
 
 ```sh
@@ -70,8 +83,8 @@ brew install cmake
 
 git clone -b terax https://github.com/j551n-ncloud/zed.git
 cd zed
-CARGO_PROFILE_RELEASE_FAST_DEBUG=0 cargo build --profile release-fast -p zed
-./target/release-fast/zed
+CARGO_PROFILE_RELEASE_FAST_DEBUG=0 cargo build --profile release-fast -p zed -p cli
+terax/bundle.sh   # -> target/release-fast/bundle/Zed.app and a zip
 ```
 
 The first build takes about 30 minutes on an M2 and needs around 10 GB in `target/`. Name it
