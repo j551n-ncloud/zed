@@ -16,6 +16,7 @@ _The patched Zed with the Terax Glass theme. Zed's own README is in [`terax/UPST
 | Agent notifications (OSC 777 / OSC 9) | terminal | `vendor/vte`, `vendor/alacritty_terminal`, `crates/terminal/src/terminal.rs` |
 | Background picture | whole window, Settings | `crates/workspace/src/background_image.rs`, `crates/settings_ui/src/page_data.rs` |
 | Rendered / Raw switch | Markdown | `crates/zed/src/zed/markdown_mode_toggle.rs` |
+| No "Partial file index" message | status bar | `crates/activity_indicator/src/activity_indicator.rs` |
 | Builds with Command Line Tools | build | `crates/gpui_apple/Cargo.toml` |
 
 ## Terminal and file tree
@@ -25,6 +26,14 @@ _The patched Zed with the Terax Glass theme. Zed's own README is in [`terax/UPST
 - **Clickable path** at the bottom left: `Home › Documents › … › project`. A click switches the tree
   and types `cd` into the terminal, like Terax. Skipped while a program other than the shell runs in
   front (vim, ssh, claude).
+- **No "Partial file index" message.** Outside a git repo Zed scans `file_scan_depth` levels
+  (default 5) and loads deeper folders when you open them. Upstream says so in the status bar each
+  time, which with a tree that follows `cd` meant on almost every `cd`. Like Terax, which reads each
+  folder only when it is opened, this build stays quiet. Search and the file finder still skip
+  folders deeper than that until they are opened; raise `file_scan_depth` if you need them.
+- **Prompt.** The terminal shows your own shell prompt (for example oh-my-zsh
+  `➜  repo git:(main) ✗`). Terax hides it in block mode and draws its own input bar; Zed has no
+  block mode, so nothing is replaced.
 - Each new folder goes through Zed's trust check. Trust a parent once, for example `~/Documents/Code`,
   and everything below it is trusted.
 
@@ -72,8 +81,13 @@ xattr -dr com.apple.quarantine Zed.app && mv Zed.app /Applications/
 ```
 
 Releases are built by [`.github/workflows/terax.yml`](.github/workflows/terax.yml) on a GitHub
-macOS runner: push a tag like `v1.26.2-terax.2`, or start the workflow by hand for a test build.
+macOS runner: push a tag like `v1.26.2-terax.3`, or start the workflow by hand for a test build.
 Zed's own workflows are removed on this branch.
+
+| Release | Changes |
+|---|---|
+| `v1.26.2-terax.2` | No "Partial file index" message, release workflow |
+| `v1.26.2-terax.1` | First release: tree follows `cd`, clickable path, bell and OSC 777 notifications, background picture, Markdown switch |
 
 ## Build (macOS)
 
