@@ -37,6 +37,8 @@ pub struct WorkspaceSettingsContent {
     pub pane_split_direction_vertical: Option<PaneSplitDirectionVertical>,
     /// Centered layout related settings.
     pub centered_layout: Option<CenteredLayoutSettings>,
+    /// Local patch: a picture behind the whole window, like Terax.
+    pub background_image: Option<BackgroundImageSettings>,
     /// Whether or not to prompt the user to confirm before closing the application.
     ///
     /// Default: false
@@ -699,6 +701,24 @@ pub enum PaneSplitDirectionHorizontal {
 pub enum PaneSplitDirectionVertical {
     Left,
     Right,
+}
+
+/// Local patch: a picture shown behind the whole window, like Terax.
+/// Pair it with a theme whose backgrounds are partly transparent.
+#[derive(Clone, Debug, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq, Default)]
+#[serde(rename_all = "snake_case")]
+#[with_fallible_options]
+pub struct BackgroundImageSettings {
+    /// Path to a PNG, JPEG or WebP file. A leading `~` is expanded.
+    pub path: Option<String>,
+    /// How strongly the picture shows, from 0.0 (hidden) to 1.0.
+    ///
+    /// Default: 0.5
+    pub opacity: Option<f32>,
+    /// Blur strength in pixels, applied once when the picture loads.
+    ///
+    /// Default: 0
+    pub blur: Option<f32>,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq, Default)]

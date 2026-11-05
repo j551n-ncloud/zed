@@ -1,4 +1,5 @@
 pub mod active_file_name;
+mod background_image;
 pub mod dock;
 pub mod history_manager;
 pub mod invalid_item_view;
@@ -470,6 +471,10 @@ actions!(
         ToggleBottomDock,
         /// Toggles centered layout mode.
         ToggleCenteredLayout,
+        /// Picks a picture to show behind the whole window (local patch).
+        SelectBackgroundImage,
+        /// Removes the background picture (local patch).
+        ClearBackgroundImage,
         /// Toggles edit prediction feature globally for all files.
         ToggleEditPrediction,
         /// Toggles the left dock.
@@ -8337,6 +8342,8 @@ impl Workspace {
                 },
             ))
             .on_action(cx.listener(Workspace::toggle_centered_layout))
+            .on_action(cx.listener(Workspace::select_background_image))
+            .on_action(cx.listener(Workspace::clear_background_image))
             .on_action(cx.listener(Workspace::toggle_editor_zoom))
             .on_action(cx.listener(
                 |workspace: &mut Workspace, action: &pane::ActivateNextItem, window, cx| {
@@ -8573,6 +8580,50 @@ impl Workspace {
     pub fn toggle_status_toast<V: ToastView>(&mut self, entity: Entity<V>, cx: &mut App) {
         self.toast_layer
             .update(cx, |toast_layer, cx| toast_layer.toggle_toast(cx, entity))
+    }
+
+    /// Local patch: pick a background picture and store it in settings.
+    pub fn select_background_image(
+        &mut self,
+        _: &SelectBackgroundImage,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let fs = self.app_state.fs.clone();
+        let paths = cx.prompt_for_paths(PathPromptOptions {
+            files: true,
+            directories: false,
+            multiple: false,
+            prompt: Some("Select Background Image".into()),
+        });
+        cx.spawn(async move |_, cx| {
+            let Ok(Ok(Some(paths))) = paths.await else {
+                return;
+            };
+            let Some(path) = paths.into_iter().next() else {
+                return;
+            };
+            cx.update(|cx| {
+                settings::update_settings_file(fs, cx, move |settings, _| {
+                    let background = settings.workspace.background_image.get_or_insert_default();
+                    background.path = Some(path.to_string_lossy().into_owned());
+                });
+            });
+        })
+        .detach();
+    }
+
+    /// Local patch: remove the background picture from settings.
+    pub fn clear_background_image(
+        &mut self,
+        _: &ClearBackgroundImage,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let fs = self.app_state.fs.clone();
+        settings::update_settings_file(fs, cx, |settings, _| {
+            settings.workspace.background_image = None;
+        });
     }
 
     pub fn toggle_centered_layout(
@@ -9638,6 +9689,8 @@ impl Render for Workspace {
             .items_start()
             .text_color(colors.text)
             .overflow_hidden()
+            // Local patch: background picture behind everything.
+            .children(background_image::render_background(cx))
             // Expose the title bar as an ARIA toolbar so region navigation
             // (FocusNextPart) can reach the top bar's controls and assistive
             // technology announces it as a toolbar. The contained controls form
