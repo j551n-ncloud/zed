@@ -37,7 +37,7 @@ A search field that opens project search, and a bell that lists terminals which 
 For Claude Code, add a `Stop` and a `Notification` hook that rings the bell inside Zed:
 
 ```json
-{ "type": "command", "command": "[ \"$TERM_PROGRAM\" = zed ] && printf '{\"terminalSequence\":\"\\\\"}' || true" }
+{"type": "command", "command": "[ \"$TERM_PROGRAM\" = zed ] && printf '{\"terminalSequence\":\"\\\\u0007\"}' || true"}
 ```
 
 ### Builds without full Xcode
