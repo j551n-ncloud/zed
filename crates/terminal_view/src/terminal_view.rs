@@ -1203,6 +1203,49 @@ fn terminal_rerun_override(task: &TaskId) -> zed_actions::Rerun {
     }
 }
 
+/// Local patch: make the shell's current folder the only folder in the
+/// project panel, like Terax. Skips `/` and non-local projects.
+fn follow_terminal_cwd(project: &WeakEntity<Project>, cwd: PathBuf, cx: &mut App) {
+    if cwd.parent().is_none() {
+        return;
+    }
+    let Some(project) = project.upgrade() else {
+        return;
+    };
+    project.update(cx, |project, cx| {
+        if !project.is_local() {
+            return;
+        }
+        let existing = project
+            .visible_worktrees(cx)
+            .find(|worktree| worktree.read(cx).abs_path().as_ref() == cwd.as_path())
+            .map(|worktree| worktree.read(cx).id());
+        let create = match existing {
+            Some(_) => None,
+            None => Some(project.create_worktree(&cwd, true, cx)),
+        };
+        cx.spawn(async move |project, cx| {
+            let keep = match (existing, create) {
+                (Some(id), _) => id,
+                (None, Some(task)) => task.await?.read_with(cx, |worktree, _| worktree.id()),
+                (None, None) => return anyhow::Ok(()),
+            };
+            project.update(cx, |project, cx| {
+                let others: Vec<_> = project
+                    .visible_worktrees(cx)
+                    .map(|worktree| worktree.read(cx).id())
+                    .filter(|id| *id != keep)
+                    .collect();
+                for id in others {
+                    project.remove_worktree(id, cx);
+                }
+            })?;
+            anyhow::Ok(())
+        })
+        .detach_and_log_err(cx);
+    });
+}
+
 fn subscribe_for_terminal_events(
     terminal: &Entity<Terminal>,
     workspace: WeakEntity<Workspace>,
@@ -1219,6 +1262,12 @@ fn subscribe_for_terminal_events(
             if current_cwd != previous_cwd {
                 previous_cwd = current_cwd;
                 terminal_view.needs_serialize = true;
+                // Local patch: the project panel follows the focused terminal's cwd.
+                if let Some(cwd) = previous_cwd.clone()
+                    && terminal_view.focus_handle.contains_focused(window, cx)
+                {
+                    follow_terminal_cwd(&terminal_view.project, cwd, cx);
+                }
             }
 
             match event {
