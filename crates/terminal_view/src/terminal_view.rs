@@ -1204,9 +1204,10 @@ fn terminal_rerun_override(task: &TaskId) -> zed_actions::Rerun {
 }
 
 /// Local patch: make the shell's current folder the only folder in the
-/// project panel, like Terax. Skips `/` and non-local projects.
+/// project panel, like Terax. Skips `/`, the home folder (far too big to
+/// scan) and non-local projects.
 fn follow_terminal_cwd(project: &WeakEntity<Project>, cwd: PathBuf, cx: &mut App) {
-    if cwd.parent().is_none() {
+    if cwd.parent().is_none() || cwd.as_path() == util::paths::home_dir().as_path() {
         return;
     }
     let Some(project) = project.upgrade() else {
@@ -1260,10 +1261,13 @@ fn subscribe_for_terminal_events(
         move |terminal_view, terminal, event, window, cx| {
             let current_cwd = terminal.read(cx).working_directory();
             if current_cwd != previous_cwd {
+                // Local patch: the project panel follows the focused terminal's cwd.
+                // Only on a real cd (not the shell's starting folder).
+                let is_cd = previous_cwd.is_some();
                 previous_cwd = current_cwd;
                 terminal_view.needs_serialize = true;
-                // Local patch: the project panel follows the focused terminal's cwd.
-                if let Some(cwd) = previous_cwd.clone()
+                if is_cd
+                    && let Some(cwd) = previous_cwd.clone()
                     && terminal_view.focus_handle.contains_focused(window, cx)
                 {
                     follow_terminal_cwd(&terminal_view.project, cwd, cx);

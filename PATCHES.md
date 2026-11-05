@@ -6,7 +6,7 @@ This branch is [Zed](https://github.com/zed-industries/zed) `v1.26.2` with a few
 
 ### File tree follows the terminal
 
-When you `cd` in a focused terminal, the project panel switches to that folder. The new folder becomes the only folder in the tree, and the others are removed from the window. It works in both the terminal panel and terminal tabs, skips `/`, and does nothing in remote projects.
+When you `cd` in a focused terminal, the project panel switches to that folder. The new folder becomes the only folder in the tree, and the others are removed from the window. It works in both the terminal panel and terminal tabs. It ignores the folder a terminal starts in, skips `/` and your home folder (too big to scan), and does nothing in remote projects.
 
 Code: `follow_terminal_cwd` in `crates/terminal_view/src/terminal_view.rs`.
 
