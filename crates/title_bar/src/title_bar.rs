@@ -381,6 +381,8 @@ impl Render for TitleBar {
                 .pr_1()
                 .gap_1()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .child(self.render_search_field(cx))
+                .child(self.render_bell_menu(cx))
                 .child(self.render_call_controls(window, cx))
                 .children(self.render_connection_status(status, cx))
                 .child(self.update_version.clone())
@@ -477,6 +479,9 @@ impl TitleBar {
         };
 
         let mut subscriptions = Vec::new();
+        // Local patch: re-render when terminal bells come in or are cleared.
+        let bell_center = terminal_view::bell_center::BellCenter::global(cx);
+        subscriptions.push(cx.observe(&bell_center, |_, _, cx| cx.notify()));
         subscriptions.push(
             cx.observe(&workspace.weak_handle().upgrade().unwrap(), |_, _, cx| {
                 cx.notify()
@@ -1214,6 +1219,103 @@ impl TitleBar {
                     })
                     .detach();
             })
+    }
+
+    /// Local patch: Terax-style search field that opens project search.
+    fn render_search_field(&self, _cx: &mut Context<Self>) -> impl IntoElement {
+        ButtonLike::new("title-bar-search")
+            .style(ButtonStyle::Outlined)
+            .child(
+                h_flex()
+                    .w(px(220.))
+                    .gap_1p5()
+                    .child(
+                        Icon::new(IconName::MagnifyingGlass)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .child(Label::new("Search").size(LabelSize::Small).color(Color::Muted))
+                    .child(div().flex_1())
+                    .child(
+                        Label::new("⇧⌘F")
+                            .size(LabelSize::XSmall)
+                            .color(Color::Disabled),
+                    ),
+            )
+            .tooltip(Tooltip::text("Search in project"))
+            .on_click(|_, window, cx| {
+                window.dispatch_action(workspace::DeploySearch::default().boxed_clone(), cx);
+            })
+    }
+
+    /// Local patch: bell with notifications from terminals (Claude Code and
+    /// other agents ring the bell when they finish or need input).
+    fn render_bell_menu(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        use terminal_view::bell_center::{BellCenter, reveal_terminal};
+
+        let count = BellCenter::global(cx).read(cx).count();
+        let workspace = self.workspace.clone();
+        let icon = if count > 0 {
+            IconName::BellDot
+        } else {
+            IconName::Bell
+        };
+        let badge = match count {
+            0 => None,
+            1..=9 => Some(count.to_string()),
+            _ => Some("9+".to_string()),
+        };
+
+        PopoverMenu::new("terminal-bell-menu")
+            .trigger(
+                ButtonLike::new("terminal-bell-trigger")
+                    .child(
+                        h_flex()
+                            .gap_0p5()
+                            .child(Icon::new(icon).size(IconSize::Small).color(if count > 0 {
+                                Color::Accent
+                            } else {
+                                Color::Muted
+                            }))
+                            .children(badge.map(|badge| {
+                                Label::new(badge).size(LabelSize::XSmall).color(Color::Accent)
+                            })),
+                    )
+                    .tooltip(Tooltip::text("Notifications")),
+            )
+            .menu(move |window, cx| {
+                let entries: Vec<(SharedString, WeakEntity<terminal_view::TerminalView>)> =
+                    BellCenter::global(cx)
+                        .read(cx)
+                        .entries()
+                        .map(|entry| (entry.title.clone(), entry.terminal.clone()))
+                        .collect();
+                let workspace = workspace.clone();
+                Some(ContextMenu::build(window, cx, move |mut menu, _, _| {
+                    if entries.is_empty() {
+                        return menu.header("No notifications");
+                    }
+                    menu = menu.header("Terminals waiting for you");
+                    for (title, terminal) in entries {
+                        let workspace = workspace.clone();
+                        menu = menu.entry(title, None, move |window, cx| {
+                            let (Some(terminal), Some(workspace)) =
+                                (terminal.upgrade(), workspace.upgrade())
+                            else {
+                                return;
+                            };
+                            workspace.update(cx, |workspace, cx| {
+                                reveal_terminal(terminal, workspace, window, cx)
+                            });
+                        });
+                    }
+                    menu.separator().entry("Clear all", None, |_, cx| {
+                        let center = BellCenter::global(cx);
+                        center.update(cx, |center, cx| center.clear_all(cx));
+                    })
+                }))
+            })
+            .anchor(Anchor::TopRight)
     }
 
     pub fn render_user_menu_button(&mut self, cx: &mut Context<Self>) -> impl Element {
