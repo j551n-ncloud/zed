@@ -92,6 +92,8 @@ pub struct ThemeSettings {
     ///
     /// Note: This setting is still experimental. See [this tracking issue](https://github.com/zed-industries/zed/issues/18078)
     pub experimental_theme_overrides: Option<settings::ThemeStyleContent>,
+    /// Local patch: panel opacity while a background picture is set.
+    pub background_panel_opacity: Option<f32>,
     /// Manual overrides per theme
     pub theme_overrides: HashMap<String, settings::ThemeStyleContent>,
     /// The current icon theme selection.
@@ -535,6 +537,32 @@ impl ThemeSettings {
             arc_theme = Arc::new(theme);
         }
 
+        // Local patch: make the main surfaces see-through so the background
+        // picture shows. Menus and popovers keep their own colors.
+        if let Some(opacity) = self.background_panel_opacity {
+            let mut theme = (*arc_theme).clone();
+            let colors = &mut theme.styles.colors;
+            for color in [
+                &mut colors.background,
+                &mut colors.surface_background,
+                &mut colors.title_bar_background,
+                &mut colors.title_bar_inactive_background,
+                &mut colors.status_bar_background,
+                &mut colors.toolbar_background,
+                &mut colors.tab_bar_background,
+                &mut colors.tab_inactive_background,
+                &mut colors.tab_active_background,
+                &mut colors.panel_background,
+                &mut colors.editor_background,
+                &mut colors.editor_gutter_background,
+                &mut colors.editor_subheader_background,
+                &mut colors.terminal_background,
+            ] {
+                color.a = opacity;
+            }
+            arc_theme = Arc::new(theme);
+        }
+
         arc_theme
     }
 
@@ -784,6 +812,18 @@ impl settings::Settings for ThemeSettings {
                 .unwrap_or(FontWeight::SEMIBOLD),
             theme: theme_selection,
             experimental_theme_overrides: content.experimental_theme_overrides.clone(),
+            background_panel_opacity: settings_content
+                .workspace
+                .background_image
+                .as_ref()
+                .filter(|background| {
+                    background
+                        .path
+                        .as_deref()
+                        .is_some_and(|path| !path.trim().is_empty())
+                })
+                .and_then(|background| background.panel_opacity)
+                .map(|opacity| opacity.clamp(0.0, 1.0)),
             theme_overrides: content.theme_overrides.clone(),
             icon_theme: icon_theme_selection,
             ui_density: ui_density_from_settings(content.ui_density.unwrap_or_default()),

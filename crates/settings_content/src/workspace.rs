@@ -719,6 +719,10 @@ pub struct BackgroundImageSettings {
     ///
     /// Default: 0
     pub blur: Option<f32>,
+    /// How solid the editor, terminal and panels are while a picture is set,
+    /// from 0.0 (fully see-through) to 1.0 (solid). Unset keeps the theme's
+    /// own backgrounds.
+    pub panel_opacity: Option<f32>,
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq, Default)]

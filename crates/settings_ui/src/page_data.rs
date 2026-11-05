@@ -1669,8 +1669,138 @@ fn appearance_page() -> SettingsPage {
         ]
     }
 
+    /// Local patch: Terax-style picture behind the whole window.
+    fn background_image_section() -> [SettingsPageItem; 6] {
+        [
+            SettingsPageItem::SectionHeader("Background Image"),
+            SettingsPageItem::ActionLink(ActionLink {
+                title: "Background Picture".into(),
+                description: Some(
+                    "Pick a PNG, JPEG or WebP to show behind the window. Works best with a partly transparent theme such as Terax Glass.".into(),
+                ),
+                button_text: "Choose Picture…".into(),
+                on_click: Arc::new(|settings_window, _window, cx| {
+                    let Some(original_window) = settings_window.original_window else {
+                        return;
+                    };
+                    original_window
+                        .update(cx, |_workspace, original_window, cx| {
+                            original_window.dispatch_action(
+                                workspace::SelectBackgroundImage.boxed_clone(),
+                                cx,
+                            );
+                            original_window.activate_window();
+                        })
+                        .ok();
+                }),
+                files: USER,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                files: USER,
+                title: "Picture Path",
+                description: "Path to the background picture. A leading ~ is expanded. Empty means no picture.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("background_image.path"),
+                    pick: |settings_content| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .as_ref()?
+                            .path
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .get_or_insert_default()
+                            .path = value;
+                    },
+                }),
+                metadata: None,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                files: USER,
+                title: "Opacity",
+                description: "How strongly the picture shows, from 0 (hidden) to 1.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("background_image.opacity"),
+                    pick: |settings_content| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .as_ref()?
+                            .opacity
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .get_or_insert_default()
+                            .opacity = value;
+                    },
+                }),
+                metadata: None,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                files: USER,
+                title: "Blur",
+                description: "Blur strength in pixels, applied once when the picture loads. 0 keeps it sharp.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("background_image.blur"),
+                    pick: |settings_content| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .as_ref()?
+                            .blur
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .get_or_insert_default()
+                            .blur = value;
+                    },
+                }),
+                metadata: None,
+            }),
+            SettingsPageItem::SettingItem(SettingItem {
+                files: USER,
+                title: "Panel Opacity",
+                description: "How solid the editor, terminal and panels are while a picture is set, from 0 (see-through) to 1 (solid). Empty keeps the theme's colors.",
+                field: Box::new(SettingField {
+                    organization_override: None,
+                    json_path: Some("background_image.panel_opacity"),
+                    pick: |settings_content| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .as_ref()?
+                            .panel_opacity
+                            .as_ref()
+                    },
+                    write: |settings_content, value, _| {
+                        settings_content
+                            .workspace
+                            .background_image
+                            .get_or_insert_default()
+                            .panel_opacity = value;
+                    },
+                }),
+                metadata: None,
+            }),
+        ]
+    }
+
     let items: Box<[SettingsPageItem]> = concat_sections!(
         theme_section(),
+        background_image_section(),
         buffer_font_section(),
         ui_font_section(),
         agent_panel_font_section(),
