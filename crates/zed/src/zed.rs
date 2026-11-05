@@ -633,7 +633,11 @@ pub fn initialize_workspace(app_state: Arc<AppState>, cx: &mut App) {
         let git_blame_status = cx.new(|_| git_ui::GitBlameStatus::default());
         let merge_conflict_indicator =
             cx.new(|cx| git_ui::MergeConflictIndicator::new(workspace, cx));
+        // Local patch: Terax-style clickable path, Home > ... > project.
+        let cwd_breadcrumb =
+            cx.new(|cx| terminal_view::cwd_breadcrumb::CwdBreadcrumb::new(workspace, cx));
         workspace.status_bar().update(cx, |status_bar, cx| {
+            status_bar.add_left_item(cwd_breadcrumb, window, cx);
             status_bar.add_left_item(search_button, window, cx);
             status_bar.add_left_item(lsp_button, window, cx);
             status_bar.add_left_item(diagnostic_summary, window, cx);

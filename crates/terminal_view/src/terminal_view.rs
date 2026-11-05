@@ -1,5 +1,7 @@
+pub mod bell_center;
 mod persistence;
 pub mod terminal_element;
+pub mod cwd_breadcrumb;
 pub mod terminal_panel;
 mod terminal_path_like_target;
 pub mod terminal_scrollbar;
@@ -581,6 +583,7 @@ impl TerminalView {
 
     pub fn clear_bell(&mut self, cx: &mut Context<TerminalView>) {
         self.has_bell = false;
+        bell_center::BellCenter::clear(&cx.entity().downgrade(), cx);
         cx.emit(Event::Wakeup);
     }
 
@@ -1204,15 +1207,20 @@ fn terminal_rerun_override(task: &TaskId) -> zed_actions::Rerun {
 }
 
 /// Local patch: make the shell's current folder the only folder in the
-/// project panel, like Terax. Skips `/`, the home folder (far too big to
-/// scan) and non-local projects.
+/// project panel, like Terax. Skips `/`.
 fn follow_terminal_cwd(project: &WeakEntity<Project>, cwd: PathBuf, cx: &mut App) {
-    if cwd.parent().is_none() || cwd.as_path() == util::paths::home_dir().as_path() {
+    if cwd.parent().is_none() {
         return;
     }
     let Some(project) = project.upgrade() else {
         return;
     };
+    set_project_root(project, cwd, cx);
+}
+
+/// Local patch: make `cwd` the only visible folder in the project panel.
+/// Does nothing in non-local projects.
+pub(crate) fn set_project_root(project: Entity<Project>, cwd: PathBuf, cx: &mut App) {
     project.update(cx, |project, cx| {
         if !project.is_local() {
             return;
@@ -1299,6 +1307,11 @@ fn subscribe_for_terminal_events(
 
                 Event::Bell => {
                     terminal_view.has_bell = true;
+                    // Local patch: list bells from terminals you are not looking at.
+                    if !terminal_view.focus_handle.contains_focused(window, cx) {
+                        let title = terminal.read(cx).title(true).into();
+                        bell_center::BellCenter::ring(cx.entity().downgrade(), title, cx);
+                    }
                     if let TerminalBell::System = TerminalSettings::get_global(cx).bell {
                         window.play_system_bell();
                     }
@@ -1461,6 +1474,7 @@ impl TerminalView {
     }
 
     fn focus_in(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        bell_center::BellCenter::clear(&cx.entity().downgrade(), cx);
         self.terminal.update(cx, |terminal, _| {
             terminal.set_cursor_shape(self.cursor_shape);
             if !self.read_only {
