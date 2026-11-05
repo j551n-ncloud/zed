@@ -5,6 +5,7 @@ pub(crate) mod mac_only_instance;
 mod migrate;
 #[cfg(target_os = "macos")]
 pub(crate) mod move_to_applications;
+mod markdown_mode_toggle;
 mod open_listener;
 mod open_url_modal;
 mod quick_action_bar;
@@ -1483,6 +1484,9 @@ fn initialize_pane(
             let quick_action_bar =
                 cx.new(|cx| QuickActionBar::new(buffer_search_bar, workspace, cx));
             toolbar.add_item(quick_action_bar, window, cx);
+            let markdown_mode_toggle =
+                cx.new(|_| markdown_mode_toggle::MarkdownModeToggle::new(workspace));
+            toolbar.add_item(markdown_mode_toggle, window, cx);
             let diagnostic_editor_controls = cx.new(|_| diagnostics::ToolbarControls::new());
             toolbar.add_item(diagnostic_editor_controls, window, cx);
             let project_search_bar = cx.new(|_| ProjectSearchBar::new());

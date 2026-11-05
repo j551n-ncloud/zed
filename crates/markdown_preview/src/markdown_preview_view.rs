@@ -1015,6 +1015,11 @@ impl MarkdownPreviewView {
         cx.notify();
     }
 
+    /// Local patch: used by the "Rendered | Raw" toolbar switch.
+    pub fn return_to_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_and_return_to_editor(&CloseAndReturnToEditor, window, cx);
+    }
+
     fn close_and_return_to_editor(
         &mut self,
         _: &CloseAndReturnToEditor,
