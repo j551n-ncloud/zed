@@ -14,9 +14,31 @@ Each `cd` opens a new folder, so Zed's folder trust check runs again. Trust a pa
 
 ### Rendered / Raw switch for Markdown
 
-Markdown files and their previews get a **Rendered | Raw** switch at the top right of the toolbar, even when the quick action bar is turned off. Turn on `markdown_preview.open_markdown_files_in_preview` so clicking a `.md` file in the tree opens it rendered.
+Markdown files and their previews get a **Rendered | Raw** switch (Raw swaps the preview for the editor in place) at the top right of the toolbar, even when the quick action bar is turned off. Turn on `markdown_preview.open_markdown_files_in_preview` so clicking a `.md` file in the tree opens it rendered.
 
 Code: `crates/zed/src/zed/markdown_mode_toggle.rs`, plus a small public `return_to_editor` method on `MarkdownPreviewView`.
+
+### Clickable path in the status bar
+
+`Home › Documents › … › project` at the bottom left. Clicking a part makes that folder the file tree and `cd`s the active terminal there (only when a shell is waiting at its prompt). Code: `crates/terminal_view/src/cwd_breadcrumb.rs`.
+
+### Background picture with opacity and blur
+
+```jsonc
+"background_image": { "path": "~/Pictures/wallpaper.png", "opacity": 0.6, "blur": 0 }
+```
+
+Shown behind the whole window; use it with a theme whose backgrounds are partly transparent. `blur` is applied once and cached. Commands: `workspace: select background image`, `workspace: clear background image`. Code: `crates/workspace/src/background_image.rs`.
+
+### Search field and notification bell in the title bar
+
+A search field that opens project search, and a bell that lists terminals which rang their bell while you were looking elsewhere (Claude Code and other agents do this when they finish or need input). Click an entry to jump to that terminal. Code: `crates/terminal_view/src/bell_center.rs`, `crates/title_bar/src/title_bar.rs`.
+
+For Claude Code, add a `Stop` and a `Notification` hook that rings the bell inside Zed:
+
+```json
+{ "type": "command", "command": "[ \"$TERM_PROGRAM\" = zed ] && printf '{\"terminalSequence\":\"\\\\"}' || true" }
+```
 
 ### Builds without full Xcode
 
