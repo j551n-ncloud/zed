@@ -2233,7 +2233,9 @@ impl AgentPanel {
                     this.refresh_terminal_metadata(terminal_id, cx);
                     this.report_terminal_program(terminal_id, source, cx);
                 }
-                TerminalEvent::Bell => this.mark_terminal_notification(terminal_id, window, cx),
+                TerminalEvent::Bell | TerminalEvent::Notification { .. } => {
+                    this.mark_terminal_notification(terminal_id, window, cx)
+                }
                 TerminalEvent::CloseTerminal => {
                     this.request_close_terminal_from_terminal_event(terminal_id, cx);
                 }

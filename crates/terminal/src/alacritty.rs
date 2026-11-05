@@ -337,6 +337,7 @@ impl From<AlacTermEvent> for TerminalBackendEvent {
             AlacTermEvent::CursorBlinkingChange => Self::CursorBlinkingChange,
             AlacTermEvent::Wakeup => Self::Wakeup,
             AlacTermEvent::Bell => Self::Bell,
+            AlacTermEvent::Notify(title, body) => Self::Notify(title, body),
             AlacTermEvent::Exit => Self::Exit,
             AlacTermEvent::ChildExit(status) => Self::ChildExit(status),
         }

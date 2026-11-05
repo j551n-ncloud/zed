@@ -672,6 +672,12 @@ pub enum Event {
     OutputReplaced,
     CloseTerminal,
     Bell,
+    /// Local patch: desktop notification from the program in the terminal
+    /// (OSC 777 `notify;title;body` or OSC 9 `body`).
+    Notification {
+        title: Option<String>,
+        body: String,
+    },
     Wakeup,
     BlinkChanged(bool),
     SelectionsChanged,
@@ -734,6 +740,8 @@ pub(crate) enum TerminalBackendEvent {
     CursorBlinkingChange,
     Wakeup,
     Bell,
+    /// Local patch: desktop notification (OSC 777 / OSC 9).
+    Notify(Option<String>, String),
     Exit,
     ChildExit(ExitStatus),
 }
@@ -752,6 +760,7 @@ impl fmt::Debug for TerminalBackendEvent {
             Self::CursorBlinkingChange => f.write_str("CursorBlinkingChange"),
             Self::Wakeup => f.write_str("Wakeup"),
             Self::Bell => f.write_str("Bell"),
+            Self::Notify(title, body) => write!(f, "Notify({title:?}, {body})"),
             Self::Exit => f.write_str("Exit"),
             Self::ChildExit(status) => write!(f, "ChildExit({status})"),
         }
@@ -1693,6 +1702,9 @@ impl Terminal {
             }
             TerminalBackendEvent::Bell => {
                 cx.emit(Event::Bell);
+            }
+            TerminalBackendEvent::Notify(title, body) => {
+                cx.emit(Event::Notification { title, body });
             }
             TerminalBackendEvent::Exit => self.register_task_finished(None, cx),
             TerminalBackendEvent::MouseCursorDirty => {
@@ -3169,6 +3181,18 @@ impl Terminal {
                 info.kill_child_process();
             })
             .detach();
+    }
+
+    /// Local patch: the foreground process name as the OS reports it, without
+    /// the filtering of `foreground_process_command_name` (which drops login
+    /// shells such as `-zsh`).
+    pub fn foreground_process_raw_name(&self) -> Option<String> {
+        match &self.terminal_type {
+            TerminalType::Pty { info, .. } => {
+                info.current.read().as_ref().map(|process| process.name.clone())
+            }
+            TerminalType::DisplayOnly => None,
+        }
     }
 
     pub fn pid(&self) -> Option<sysinfo::Pid> {

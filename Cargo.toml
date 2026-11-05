@@ -1020,6 +1020,8 @@ features = [
 ]
 
 [patch.crates-io]
+# Local patch: vte with OSC 777 / OSC 9 desktop notifications.
+vte = { path = "vendor/vte" }
 cpal = { git = "https://github.com/RustAudio/cpal", rev = "e1612d5d98152f8dc2a62e1b51ef7cbf4f7f26b7" }
 # Unify `tree_sitter_language::LanguageFn` between crates.io grammar crates and
 # the git tree-sitter above; two instances of the crate would make grammar
@@ -1195,3 +1197,7 @@ nonminimal_bool = "allow"
 # this workspace on purpose.
 [workspace.metadata.dylint]
 libraries = [{ path = "tooling/lints" }]
+
+# Local patch: alacritty_terminal that forwards desktop notifications.
+[patch."https://github.com/zed-industries/alacritty"]
+alacritty_terminal = { path = "vendor/alacritty_terminal" }
