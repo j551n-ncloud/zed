@@ -27,6 +27,8 @@ use workspace::{StatusItemView, Workspace, item::ItemHandle};
 
 const GIT_OPERATION_DELAY: Duration = Duration::from_millis(0);
 pub const DEFERRED_SCAN_MESSAGE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Local patch: "Partial file index" is hidden, see `deferred_scan_content`.
+const SHOW_DEFERRED_SCAN_MESSAGE: bool = false;
 
 actions!(
     activity_indicator,
@@ -696,6 +698,11 @@ impl ActivityIndicator {
     }
 
     fn deferred_scan_content(&mut self, cx: &mut Context<Self>) -> Option<Content> {
+        // Local patch: like Terax, stay quiet about folders loaded on demand.
+        // The file tree follows `cd`, so this showed up on every non-git folder.
+        if !SHOW_DEFERRED_SCAN_MESSAGE {
+            return None;
+        }
         if !matches!(
             self.deferred_scan_message,
             DeferredScanMessage::Pending | DeferredScanMessage::Shown { .. }
