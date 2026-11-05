@@ -1,48 +1,84 @@
-# Zed
+# zed (terax branch)
 
-[![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
-[![CI](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml/badge.svg)](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml)
+[Zed](https://github.com/zed-industries/zed) `v1.26.2` with a few patches that make it work like
+[Terax](https://terax.app), a terminal-first editor: the file tree follows the terminal, a clickable
+path, agent notifications and a background picture.
 
-Welcome to Zed, a high-performance, multiplayer code editor from the creators of [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter).
+![Patched Zed: file tree on the left, terminal in front, search and notification bell at the top, clickable path at the bottom](terax/cover.png)
 
----
+_The patched Zed with the Terax Glass theme. Zed's own README is in [`terax/UPSTREAM_README.md`](terax/UPSTREAM_README.md)._
 
-### Installation
+| Patch | Where | Code |
+|---|---|---|
+| File tree follows `cd` | terminal | `crates/terminal_view/src/terminal_view.rs` (`follow_terminal_cwd`) |
+| Clickable path | status bar | `crates/terminal_view/src/cwd_breadcrumb.rs` |
+| Search field, notification bell | title bar | `crates/title_bar/src/title_bar.rs`, `crates/terminal_view/src/bell_center.rs` |
+| Agent notifications (OSC 777 / OSC 9) | terminal | `vendor/vte`, `vendor/alacritty_terminal`, `crates/terminal/src/terminal.rs` |
+| Background picture | whole window, Settings | `crates/workspace/src/background_image.rs`, `crates/settings_ui/src/page_data.rs` |
+| Rendered / Raw switch | Markdown | `crates/zed/src/zed/markdown_mode_toggle.rs` |
+| Builds with Command Line Tools | build | `crates/gpui_apple/Cargo.toml` |
 
-On macOS, Linux, and Windows you can [download Zed directly](https://zed.dev/download) or install Zed via your local package manager ([macOS](https://zed.dev/docs/installation#macos)/[Linux](https://zed.dev/docs/linux#installing-via-a-package-manager)/[Windows](https://zed.dev/docs/windows#package-managers)).
+## Terminal and file tree
 
-Other platforms are not yet available:
+- **Tree follows the terminal.** `cd` in a focused terminal and that folder becomes the only folder
+  in the file tree. Not on the folder a terminal starts in, not for `/`, not in remote projects.
+- **Clickable path** at the bottom left: `Home › Documents › … › project`. A click switches the tree
+  and types `cd` into the terminal, like Terax. Skipped while a program other than the shell runs in
+  front (vim, ssh, claude).
+- Each new folder goes through Zed's trust check. Trust a parent once, for example `~/Documents/Code`,
+  and everything below it is trusted.
 
-- Web ([tracking discussion](https://github.com/zed-industries/zed/discussions/26195))
+## Notifications
 
-### Developing Zed
+- **Bell** in the title bar with a count. It lists terminals that want attention while you look
+  elsewhere: `edge-ciq · needs your input`, `edge-ciq · finished`. A click jumps to that terminal,
+  looking at a terminal clears its entry.
+- **Native Terax notifications.** The terminal understands OSC 777 (`777;notify;title;body`) and
+  OSC 9. Terax's Claude Code hooks send `working`, `attention` and `finished`; set
+  `"terminal": { "env": { "TERAX_TERMINAL": "1" } }` and they work in Zed unchanged.
+- **Sound:** `Ping` when an agent needs you, `Glass` when it is done. **Banner:** a macOS
+  notification when Zed is not in front.
+- A plain terminal bell (`\a`) shows up too, without sound.
 
-- [Building Zed for macOS](./docs/src/development/macos.md)
-- [Building Zed for Linux](./docs/src/development/linux.md)
-- [Building Zed for Windows](./docs/src/development/windows.md)
+## Background picture
 
-### Contributing
+Settings → Appearance → **Background Image**, or in `settings.json`:
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for ways you can contribute to Zed.
+```jsonc
+"background_image": {
+  "path": "~/Pictures/wallpaper.png",
+  "opacity": 1.0,        // picture, 0 to 1
+  "blur": 0,             // pixels, applied once and cached
+  "panel_opacity": 0.55  // editor, terminal and panels, 0 (see-through) to 1 (solid)
+}
+```
 
-Also... we're hiring! Check out our [jobs](https://zed.dev/jobs) page for open roles.
+Commands: `workspace: select background image`, `workspace: clear background image`. Menus and
+popovers stay solid.
 
-### Licensing
+## Markdown
 
-Zed source code is licensed primarily under GPL-3.0-or-later, with Apache-2.0 components where marked.
+`.md` files get a **Rendered | Raw** switch at the top right. Raw swaps the preview for the editor in
+the same place. With `"markdown_preview": { "open_markdown_files_in_preview": true }` a click in the
+tree opens them rendered.
 
-License information for third party dependencies must be correctly provided for CI to pass.
+## Build (macOS)
 
-We use [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) to automatically comply with open source licenses. If CI is failing, check the following:
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+brew install cmake
 
-- Is it showing a `no license specified` error for a crate you've created? If so, add `publish = false` under `[package]` in your crate's Cargo.toml.
-- Is the error `failed to satisfy license requirements` for a dependency? If so, first determine what license the project has and whether this system is sufficient to comply with this license's requirements. If you're unsure, ask a lawyer. Once you've verified that this system is acceptable add the license's SPDX identifier to the `accepted` array in `script/licenses/zed-licenses.toml`.
-- Is `cargo-about` unable to find the license for a dependency? If so, add a clarification field at the end of `script/licenses/zed-licenses.toml`, as specified in the [cargo-about book](https://embarkstudios.github.io/cargo-about/cli/generate/config.html#crate-configuration).
+git clone -b terax https://github.com/j551n-ncloud/zed.git
+cd zed
+CARGO_PROFILE_RELEASE_FAST_DEBUG=0 cargo build --profile release-fast -p zed
+./target/release-fast/zed
+```
 
-## Sponsorship
+The first build takes about 30 minutes on an M2 and needs around 10 GB in `target/`. Name it
+`target.noindex` (with a `target` link to it) so Spotlight does not index the build. Metal shaders
+compile at runtime, so the Command Line Tools are enough; no full Xcode.
 
-Zed is developed by **Zed Industries, Inc.**, a for-profit company.
+## License
 
-If you’d like to financially support the project, you can do so via GitHub Sponsors.
-Sponsorships go directly to Zed Industries and are used as general company revenue.
-There are no perks or entitlements associated with sponsorship.
+Same as upstream Zed: see the `LICENSE-*` files. `vendor/vte` and `vendor/alacritty_terminal` keep
+their own licenses (MIT / Apache-2.0).
